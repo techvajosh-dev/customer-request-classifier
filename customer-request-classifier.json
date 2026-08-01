@@ -1,0 +1,1925 @@
+{
+  "name": "Customer Request Classifier",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 📥 INTAKE\nGmail trigger watches the shared inbox.\nAuto-replies are filtered out automatically.\nMessage data is normalized and body truncated to 3k chars.",
+        "height": 508,
+        "width": 688
+      },
+      "id": "4bd1c597-c193-4634-b01f-e6d7b5507dab",
+      "name": "Sticky Note - Intake",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2480,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 🔍 DEDUPLICATION\nSearches Airtable by Message-ID.\nIf found → stop (prevents reprocessing on poll overlap).\nIf new → log with status \"Processing\" before AI call.",
+        "height": 656,
+        "width": 576
+      },
+      "id": "beea3ee6-d86b-41d8-98fa-09d05aa53390",
+      "name": "Sticky Note - Dedup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1776,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 🤖 AI AGENT\nSingle agent call returns structured JSON:\n→ Category (6 options)\n→ Confidence (0-100)\n→ Human review flag\n→ Reasoning\n→ Draft response\n\nChat Model: GPT-4o (swappable via dropdown)\nOutput Parser: Enforces JSON schema\nTemp: 0.2 (consistent classification)",
+        "height": 768,
+        "width": 524
+      },
+      "id": "5dedab8a-493b-4411-87a9-bd1871d179a3",
+      "name": "Sticky Note - AI",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1184,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 🔔 NOTIFICATION ROUTING\nSlack alert fires when ANY of:\n→ Confidence < 80%\n→ Category = Refund Request\n→ AI flagged needs_human_review\n\nAlert @mentions the assigned agent.\nOtherwise → Auto-Handled (no human needed).",
+        "height": 672,
+        "width": 668
+      },
+      "id": "076c5883-741e-47bf-8994-2a107a3ec8d3",
+      "name": "Sticky Note - Notify",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -32,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚠️ ERROR HANDLING\nCatches unhandled workflow errors.\nLogs to separate Airtable Errors table.\nSends Slack alert with failed node + error message.",
+        "height": 372,
+        "width": 692,
+        "color": 3
+      },
+      "id": "81ffbb9f-7b6a-4092-bbb9-3797f1de311a",
+      "name": "Sticky Note - Errors",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2480,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 👤 AGENT ASSIGNMENT\nLooks up assigned agent from Agent Directory table.\nMatches by classified category.\nIf primary unavailable → routes to backup.\nFallback: Team Lead if no agent found.\nSlack mention is built safely (never a broken @tag).",
+        "height": 584,
+        "width": 592
+      },
+      "id": "cc3834bb-26b2-42ce-bc3d-6202fd17f52b",
+      "name": "Sticky Note - Agent",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -640,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -2464,
+        400
+      ],
+      "id": "49d296b9-10f4-42ed-82c1-71a84e6b61c8",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_ME",
+          "name": "Your Gmail credential"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "67a4499d-1308-4222-b29b-16ef5b9e00e2",
+      "name": "Auto-Reply_Skip",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -1968,
+        544
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "8e72e253-f60d-4b1f-94ec-6cc1ebaca8be",
+      "name": "Duplicate_Stop",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -1408,
+        544
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "237006ea-092b-48d1-b093-27039ab7fd49",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -2448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "YOUR_WORKFLOW_ERRORS_TABLE_ID",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Resolved": false,
+            "Node Name": "={{ $json.execution.lastNodeExecuted }}",
+            "Error Message": "={{ $json.execution.error.message }}",
+            "Input Data": "={{ $json.execution.url }}",
+            "Timestamp": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Node Name",
+              "displayName": "Node Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Error Message",
+              "displayName": "Error Message",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Input Data",
+              "displayName": "Input Data",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Resolved",
+              "displayName": "Resolved",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "id": "3477f090-9c1c-48b5-9215-0d3b8cb165f4",
+      "name": "Log Error to Airtable1",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        -2224,
+        0
+      ],
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Your Airtable credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "YOUR_AGENT_DIRECTORY_TABLE_ID",
+          "mode": "list"
+        },
+        "filterByFormula": "={Category}=\"{{ $('Validate & Enrich').item.json.category }}\"",
+        "options": {}
+      },
+      "id": "d9ca037e-ea5e-436e-bb2d-83a9b4f65a91",
+      "name": "Lookup Agent",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        -576,
+        384
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Your Airtable credential"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resolve assigned agent with backup fallback\nconst agentData = $input.first();\nconst enrichedData = $('Validate & Enrich').first().json;\n\nlet assignedAgent = 'Team Lead';\nlet assignedSlackId = '';\nlet assignedEmail = '';\nlet assignedRole = '';\n\ntry {\n  const fields = agentData.json.fields || agentData.json;\n\n  if (fields && fields['Agent Name']) {\n    const isAvailable = fields['Is Available'];\n\n    if (isAvailable) {\n      assignedAgent = fields['Agent Name'] || 'Team Lead';\n      assignedSlackId = fields['Slack User ID'] || '';\n      assignedEmail = fields['Agent Email'] || '';\n      assignedRole = fields['Role'] || '';\n    } else {\n      // Primary agent unavailable — use backup\n      assignedAgent = fields['Backup Agent Name'] || 'Team Lead';\n      assignedSlackId = fields['Backup Slack User ID'] || '';\n      assignedRole = 'Backup';\n    }\n  }\n} catch (err) {\n  // No agent found — default to Team Lead\n  assignedAgent = 'Team Lead';\n  assignedSlackId = '';\n}\n\n// Build safe Slack mention — never output a broken <@> tag\n// If we have a Slack ID: \"<@U12345> (Maria Santos)\"\n// If we don't: \"Maria Santos\" or \"Team Lead (unassigned)\"\nlet slackMention;\nif (assignedSlackId) {\n  slackMention = '<@' + assignedSlackId + '> (' + assignedAgent + ')';\n} else if (assignedAgent !== 'Team Lead') {\n  slackMention = assignedAgent;\n} else {\n  slackMention = 'Team Lead (unassigned)';\n}\n\nreturn [{\n  json: {\n    ...enrichedData,\n    assignedAgent,\n    assignedSlackId,\n    assignedEmail,\n    assignedRole,\n    slackMention\n  }\n}];"
+      },
+      "id": "246730f7-7f69-4173-acf6-0053b08dae20",
+      "name": "Resolve Agent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -384,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate AI Agent output and enrich with metadata\nconst item = $input.first();\nconst airtableRecord = $('Log to Airtable').first();\nconst recordId = airtableRecord.json.id;\nconst original = $('Extract Message Data').first().json;\n\nlet result;\n\ntry {\n  // The AI Agent with Structured Output Parser returns parsed JSON in .output\n  const parsed = item.json.output || item.json;\n\n  // Validate category against allowed values\n  const validCategories = [\n    'Billing', 'Access', 'Scheduling',\n    'Technical Support', 'General Question', 'Refund Request'\n  ];\n\n  let category = parsed.category || 'General Question';\n  let confidence = typeof parsed.confidence === 'number' ? parsed.confidence : 0;\n  let needsHumanReview = parsed.needs_human_review === true;\n  let reasoning = parsed.reasoning || '';\n  let draftResponse = parsed.draft_response || '';\n\n  // Auto-correct invalid category\n  if (!validCategories.includes(category)) {\n    category = 'General Question';\n    needsHumanReview = true;\n    reasoning += ' [Auto-corrected: AI returned invalid category]';\n  }\n\n  // Clamp confidence to valid range\n  if (confidence < 0 || confidence > 100) {\n    confidence = 0;\n    needsHumanReview = true;\n  }\n\n  result = {\n    recordId: recordId,\n    category: category,\n    confidence: Math.round(confidence),\n    needsHumanReview: needsHumanReview,\n    reasoning: reasoning,\n    draftResponse: draftResponse,\n    status: 'Classified',\n    error: false,\n    senderEmail: original.senderEmail,\n    senderName: original.senderName,\n    subject: original.subject\n  };\n\n} catch (err) {\n  // Fallback: ensure message still gets human attention\n  result = {\n    recordId: recordId,\n    category: 'General Question',\n    confidence: 0,\n    needsHumanReview: true,\n    reasoning: 'AI Agent output validation failed: ' + err.message + '. Routed to human review.',\n    draftResponse: '',\n    status: 'Error',\n    error: true,\n    senderEmail: original.senderEmail,\n    senderName: original.senderName,\n    subject: original.subject\n  };\n}\n\nreturn [{ json: result }];"
+      },
+      "id": "1c1c5c01-2259-4b8c-9f23-5f6ba3a6e626",
+      "name": "Validate & Enrich",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -784,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "YOUR_CUSTOMER_REQUESTS_TABLE_ID",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Message ID": "={{ $('Extract Message Data').item.json.messageId }}",
+            "Received At": "={{ $('Extract Message Data').item.json.receivedAt }}",
+            "Sender Email": "={{ $('Extract Message Data').item.json.senderEmail }}",
+            "Sender Name": "={{ $('Extract Message Data').item.json.senderName }}",
+            "Subject": "={{ $('Extract Message Data').item.json.subject }}",
+            "Body": "={{ $('Extract Message Data').item.json.body }}",
+            "Status": "Processing",
+            "Confidence": 0
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Message ID",
+              "displayName": "Message ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Received At",
+              "displayName": "Received At",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Sender Email",
+              "displayName": "Sender Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Sender Name",
+              "displayName": "Sender Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Body",
+              "displayName": "Body",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Billing",
+                  "value": "Billing"
+                },
+                {
+                  "name": "Access",
+                  "value": "Access"
+                },
+                {
+                  "name": "Scheduling",
+                  "value": "Scheduling"
+                },
+                {
+                  "name": "Technical Support",
+                  "value": "Technical Support"
+                },
+                {
+                  "name": "General Question",
+                  "value": "General Question"
+                },
+                {
+                  "name": "Refund Request",
+                  "value": "Refund Request"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Confidence",
+              "displayName": "Confidence",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Needs Human Review",
+              "displayName": "Needs Human Review",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "AI Reasoning",
+              "displayName": "AI Reasoning",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Draft Response",
+              "displayName": "Draft Response",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Processing",
+                  "value": "Processing"
+                },
+                {
+                  "name": "Classified",
+                  "value": "Classified"
+                },
+                {
+                  "name": "Notified",
+                  "value": "Notified"
+                },
+                {
+                  "name": "Auto-Handled",
+                  "value": "Auto-Handled"
+                },
+                {
+                  "name": "Error",
+                  "value": "Error"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Processed At",
+              "displayName": "Processed At",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Error Details",
+              "displayName": "Error Details",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Agent Directory",
+              "displayName": "Agent Directory",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "id": "100bf281-8a7e-427b-950a-b8de83e7135d",
+      "name": "Log to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        -1344,
+        368
+      ],
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Your Airtable credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "YOUR_CUSTOMER_REQUESTS_TABLE_ID",
+          "mode": "list"
+        },
+        "filterByFormula": "={Message ID}=\"{{ $json.messageId }}\"",
+        "options": {}
+      },
+      "id": "8bbba716-890a-4e32-a08a-275e870fa75e",
+      "name": "Search Duplicate",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        -1760,
+        384
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Your Airtable credential"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "9a0c869a-bf07-4563-b3bf-f6d5d9dcf19d",
+              "leftValue": "={{ $json.messageId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -2112,
+        400
+      ],
+      "id": "13e7e40b-244d-42d6-b1a9-d9e2134b5600",
+      "name": "Is Real Message?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and normalize message data (Gmail Trigger format)\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const email = item.json;\n\n  // Gmail uses 'id' not 'messageId'\n  const messageId = email.id || '';\n\n  // Parse 'From' (capital F) — comes as \"Name <email@domain.com>\"\n  const fromRaw = email.From || '';\n  let senderEmail = '';\n  let senderName = 'Unknown';\n\n  const emailMatch = fromRaw.match(/<(.+?)>/);\n  if (emailMatch) {\n    senderEmail = emailMatch[1];\n    senderName = fromRaw.replace(/<.+?>/, '').trim() || 'Unknown';\n  } else {\n    senderEmail = fromRaw.trim();\n  }\n\n  // Gmail uses 'Subject' (capital S)\n  const subject = email.Subject || '(No Subject)';\n\n  // Body: use snippet (Gmail preview text) as primary source\n  let body = email.snippet || '';\n  body = body.replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim();\n  if (body.length > 3000) {\n    body = body.substring(0, 3000) + '\\n[... truncated for processing]';\n  }\n\n  // Convert internalDate to both formats\n  const dateObj = email.internalDate\n    ? new Date(parseInt(email.internalDate))\n    : new Date();\n\n  // ISO format for Airtable date field\n  const receivedAt = dateObj.toISOString();\n\n  // Human-readable format for display\n  const month = String(dateObj.getMonth() + 1).padStart(2, '0');\n  const day = String(dateObj.getDate()).padStart(2, '0');\n  const year = dateObj.getFullYear();\n  let hours = dateObj.getHours();\n  const minutes = String(dateObj.getMinutes()).padStart(2, '0');\n  const ampm = hours >= 12 ? 'PM' : 'AM';\n  hours = hours % 12 || 12;\n  const receivedAtFormatted = `${month}-${day}-${year} ${hours}:${minutes} ${ampm}`;\n\n  results.push({\n    json: {\n      messageId: messageId,\n      receivedAt: receivedAt,\n      receivedAtFormatted: receivedAtFormatted,\n      senderEmail: senderEmail,\n      senderName: senderName,\n      subject: subject,\n      body: body\n    }\n  });\n}\n\nif (results.length === 0) {\n  results.push({ json: { _skip: true } });\n}\n\nreturn results;"
+      },
+      "id": "bedccfbe-c7af-4c32-9d72-89b3055ded66",
+      "name": "Extract Message Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2288,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "YOUR_CUSTOMER_REQUESTS_TABLE_ID",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Category": "={{ $json.category }}",
+            "Confidence": "={{ $json.confidence }}",
+            "Needs Human Review": "={{ $json.needsHumanReview }}",
+            "AI Reasoning": "={{ $json.reasoning }}",
+            "Draft Response": "={{ $json.draftResponse }}",
+            "Status": "={{ $json.status }}",
+            "Processed At": "={{ new Date().toISOString() }}",
+            "id": "={{ $json.recordId }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Message ID",
+              "displayName": "Message ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Received At",
+              "displayName": "Received At",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Sender Email",
+              "displayName": "Sender Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Sender Name",
+              "displayName": "Sender Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Body",
+              "displayName": "Body",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Billing",
+                  "value": "Billing"
+                },
+                {
+                  "name": "Access",
+                  "value": "Access"
+                },
+                {
+                  "name": "Scheduling",
+                  "value": "Scheduling"
+                },
+                {
+                  "name": "Technical Support",
+                  "value": "Technical Support"
+                },
+                {
+                  "name": "General Question",
+                  "value": "General Question"
+                },
+                {
+                  "name": "Refund Request",
+                  "value": "Refund Request"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Confidence",
+              "displayName": "Confidence",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Needs Human Review",
+              "displayName": "Needs Human Review",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "AI Reasoning",
+              "displayName": "AI Reasoning",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Draft Response",
+              "displayName": "Draft Response",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Processing",
+                  "value": "Processing"
+                },
+                {
+                  "name": "Classified",
+                  "value": "Classified"
+                },
+                {
+                  "name": "Notified",
+                  "value": "Notified"
+                },
+                {
+                  "name": "Auto-Handled",
+                  "value": "Auto-Handled"
+                },
+                {
+                  "name": "Error",
+                  "value": "Error"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Processed At",
+              "displayName": "Processed At",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Assigned To",
+              "displayName": "Assigned To",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "id": "a66f5ff2-c5f3-4c54-9dcf-74ebb408856b",
+      "name": "Update Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        -192,
+        384
+      ],
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Your Airtable credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "low-confidence",
+              "leftValue": "={{ $('Resolve Agent').item.json.confidence }}",
+              "rightValue": 80,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            },
+            {
+              "id": "is-refund",
+              "leftValue": "={{ $('Resolve Agent').item.json.category }}",
+              "rightValue": "Refund Request",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "human-review",
+              "leftValue": "={{ $('Resolve Agent').item.json.needsHumanReview }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "9a713f03-a289-4467-be32-78b9518d42ee",
+      "name": "Needs Notification?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        0,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "YOUR_CUSTOMER_REQUESTS_TABLE_ID",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Update Airtable').item.json.id }}",
+            "Status": "Auto-Handled"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Message ID",
+              "displayName": "Message ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Received At",
+              "displayName": "Received At",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Sender Email",
+              "displayName": "Sender Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Sender Name",
+              "displayName": "Sender Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Body",
+              "displayName": "Body",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Billing",
+                  "value": "Billing"
+                },
+                {
+                  "name": "Access",
+                  "value": "Access"
+                },
+                {
+                  "name": "Scheduling",
+                  "value": "Scheduling"
+                },
+                {
+                  "name": "Technical Support",
+                  "value": "Technical Support"
+                },
+                {
+                  "name": "General Question",
+                  "value": "General Question"
+                },
+                {
+                  "name": "Refund Request",
+                  "value": "Refund Request"
+                }
+              ],
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Confidence",
+              "displayName": "Confidence",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Needs Human Review",
+              "displayName": "Needs Human Review",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "AI Reasoning",
+              "displayName": "AI Reasoning",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Draft Response",
+              "displayName": "Draft Response",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Processing",
+                  "value": "Processing"
+                },
+                {
+                  "name": "Classified",
+                  "value": "Classified"
+                },
+                {
+                  "name": "Notified",
+                  "value": "Notified"
+                },
+                {
+                  "name": "Auto-Handled",
+                  "value": "Auto-Handled"
+                },
+                {
+                  "name": "Error",
+                  "value": "Error"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Processed At",
+              "displayName": "Processed At",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Error Details",
+              "displayName": "Error Details",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Agent Directory",
+              "displayName": "Agent Directory",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "559b0bed-5ab0-4fb9-9323-b7566d5568eb",
+      "name": "Status → Auto-Handled",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        448,
+        480
+      ],
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Your Airtable credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "YOUR_SLACK_CHANNEL_ID",
+          "mode": "id"
+        },
+        "text": "=🔔 *Customer Request Needs Attention*\n\n*Assigned to:* {{ $('Resolve Agent').item.json.slackMention }}\n*From:* {{ $('Resolve Agent').item.json.senderName }} ({{ $('Resolve Agent').item.json.senderEmail }})\n*Subject:* {{ $('Resolve Agent').item.json.subject }}\n*Category:* {{ $('Resolve Agent').item.json.category }}\n*Confidence:* {{ $('Resolve Agent').item.json.confidence }}%\n*Human Review Flagged:* {{ $('Resolve Agent').item.json.needsHumanReview }}\n\n*AI Reasoning:* {{ $('Resolve Agent').item.json.reasoning }}\n\n*Draft Response:*\n{{ $('Resolve Agent').item.json.draftResponse }}",
+        "otherOptions": {}
+      },
+      "id": "a8a34713-446b-4b40-b7c3-0f71beb57311",
+      "name": "Slack Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        224,
+        288
+      ],
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Your Slack credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "YOUR_CUSTOMER_REQUESTS_TABLE_ID",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Update Airtable').item.json.id }}",
+            "Status": "Notified"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Message ID",
+              "displayName": "Message ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Received At",
+              "displayName": "Received At",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Sender Email",
+              "displayName": "Sender Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Sender Name",
+              "displayName": "Sender Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Body",
+              "displayName": "Body",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Billing",
+                  "value": "Billing"
+                },
+                {
+                  "name": "Access",
+                  "value": "Access"
+                },
+                {
+                  "name": "Scheduling",
+                  "value": "Scheduling"
+                },
+                {
+                  "name": "Technical Support",
+                  "value": "Technical Support"
+                },
+                {
+                  "name": "General Question",
+                  "value": "General Question"
+                },
+                {
+                  "name": "Refund Request",
+                  "value": "Refund Request"
+                }
+              ],
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Confidence",
+              "displayName": "Confidence",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Needs Human Review",
+              "displayName": "Needs Human Review",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "AI Reasoning",
+              "displayName": "AI Reasoning",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Draft Response",
+              "displayName": "Draft Response",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Processing",
+                  "value": "Processing"
+                },
+                {
+                  "name": "Classified",
+                  "value": "Classified"
+                },
+                {
+                  "name": "Notified",
+                  "value": "Notified"
+                },
+                {
+                  "name": "Auto-Handled",
+                  "value": "Auto-Handled"
+                },
+                {
+                  "name": "Error",
+                  "value": "Error"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Processed At",
+              "displayName": "Processed At",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Error Details",
+              "displayName": "Error Details",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Agent Directory",
+              "displayName": "Agent Directory",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "515ec510-ce23-4452-bedb-c9f9c9eff0e5",
+      "name": "Status → Notified",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        448,
+        288
+      ],
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Your Airtable credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "dedup-check",
+              "leftValue": "={{ $json.length || 0 }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b8563e65-2756-4cfa-bf9f-29661c6a4055",
+      "name": "Is Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1584,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $('Extract Message Data').item.json.messageId }}",
+        "emailType": "text",
+        "message": "={{ $('Resolve Agent').item.json.draftResponse }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        224,
+        480
+      ],
+      "id": "5fc1a726-79bf-44ed-abf5-fd48da38cbec",
+      "name": "Reply to a message",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_ME",
+          "name": "Your Gmail credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "YOUR_SLACK_CHANNEL_ID",
+          "mode": "list"
+        },
+        "text": "=⚠️ *Workflow Error — Customer Request Classifier*\n\n*Failed Node:* {{ $json.fields['Node Name'] }}\n*Error:* {{ $json.fields['Error Message'] }}\n*Time:* {{ $json.fields['Timestamp'] }}\n\n🔗 *Failed execution:* {{ $json.fields['Input Data'] }}",
+        "otherOptions": {}
+      },
+      "id": "11344fb8-b00c-415c-bafa-e2170b0f6ca4",
+      "name": "Error Slack Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        -2016,
+        0
+      ],
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Your Slack credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Classify this customer request.\n\nSubject: {{ $('Extract Message Data').item.json.subject }}\n\nBody:{{ $('Extract Message Data').item.json.body }}\n",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a customer support classifier for a SaaS company.\n\nAnalyze the customer message and classify it into exactly one category. Provide a confidence score, flag messages that need human review, and draft a professional response.\n\n## Categories (choose exactly one):\n- Billing — invoices, charges, payment methods, pricing, subscription changes\n- Access — login issues, password resets, account lockouts, permission errors\n- Scheduling — appointments, meetings, rescheduling, event cancellations\n- Technical Support — bugs, errors, broken features, integration problems\n- General Question — product info, how-to questions, general inquiries\n- Refund Request — any mention of refund, money back, cancellation requesting money back\n\n## Confidence Scoring:\n- 90-100: Unambiguous, clearly fits one category\n- 70-89: Likely correct but minor ambiguity exists\n- 50-69: Multiple categories could reasonably apply\n- Below 50: Unclear, vague, or highly complex\n\n## Flag needs_human_review as TRUE when:\n- Message contains angry, threatening, or abusive language\n- Multiple categories apply with near-equal weight\n- Message is too vague to classify with confidence\n- Legal language or regulatory references appear\n- Customer mentions escalation, complaint, lawsuit, or attorney\n- Message references a prior unresolved issue\n\n## Draft Response Rules:\n- Professional, empathetic tone\n- Acknowledge the specific issue mentioned\n- Do NOT make promises about resolution timelines\n- Do NOT approve refunds or account changes — only acknowledge and set expectations\n- Keep under 150 words",
+          "maxIterations": 1
+        }
+      },
+      "id": "d2290f93-6683-4d61-87ce-33708dbc0c34",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -1120,
+        320
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-5-mini"
+        },
+        "options": {}
+      },
+      "id": "30926056-86e1-47ef-bfb4-b4327a0f0f06",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -1120,
+        528
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_ME",
+          "name": "Your OpenAI credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"category\": \"Billing\",\n  \"confidence\": 95,\n  \"needs_human_review\": false,\n  \"reasoning\": \"Customer is asking about an unexpected charge on their invoice. Clear billing inquiry with no ambiguity.\",\n  \"draft_response\": \"Thank you for reaching out about the charge on your account. I've forwarded your inquiry to our billing team, and someone will review your account details shortly. If you have your invoice number handy, please reply with it so we can look into this faster.\"\n}"
+      },
+      "id": "6ac731d2-5c93-41fa-91ad-089cad2e9ad0",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        -944,
+        528
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Message Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Log Error to Airtable1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error to Airtable1": {
+      "main": [
+        [
+          {
+            "node": "Error Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Agent": {
+      "main": [
+        [
+          {
+            "node": "Resolve Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Agent": {
+      "main": [
+        [
+          {
+            "node": "Update Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Enrich": {
+      "main": [
+        [
+          {
+            "node": "Lookup Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Airtable": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Is Duplicate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Real Message?": {
+      "main": [
+        [
+          {
+            "node": "Search Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Auto-Reply_Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Message Data": {
+      "main": [
+        [
+          {
+            "node": "Is Real Message?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Airtable": {
+      "main": [
+        [
+          {
+            "node": "Needs Notification?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Notification?": {
+      "main": [
+        [
+          {
+            "node": "Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply to a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Alert": {
+      "main": [
+        [
+          {
+            "node": "Status → Notified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Duplicate?": {
+      "main": [
+        [
+          {
+            "node": "Log to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Duplicate_Stop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status → Auto-Handled": {
+      "main": [
+        []
+      ]
+    },
+    "Reply to a message": {
+      "main": [
+        [
+          {
+            "node": "Status → Auto-Handled",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Validate & Enrich",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "itPaIcFuTHVsWJSN",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "nodeGroups": [],
+  "tags": [
+    "ai-agent",
+    "automation",
+    "customer-support"
+  ]
+}

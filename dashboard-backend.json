@@ -1,0 +1,295 @@
+{
+  "name": "Dashboard Backend v2 - Customer Request Classifier",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "DASHBOARD BACKEND v2\n\nFlow: Dashboard Webhook -> Valid Token? -> Get Customer Requests -> Get Agent Directory -> Get Workflow Errors -> Calculate Metrics v2 -> Send Dashboard Data\n\nBago sa v2:\n- Kinukuha na rin ang Agent Directory at Workflow Errors tables\n- Week-over-week deltas (hindi kasama ang kasalukuyang linggo)\n- Avg response time + time saved (ROI)\n- allRequests (buong listahan para sa Requests page)\n- agents (para sa Agents page)\n- systemHealth (para sa System Health page)\n\nSetup after import:\n1. Select Airtable credential sa LAHAT ng 3 Airtable nodes\n2. Get Customer Requests -> table: Customer Requests\n   Get Agent Directory -> table: Agent Directory\n   Get Workflow Errors -> table: Workflow Errors\n3. Same token pa rin sa Valid Token? node\n4. I-UNPUBLISH muna ang lumang v1 workflow (same webhook path), saka i-Publish ito",
+        "height": 940,
+        "width": 1720,
+        "color": 4
+      },
+      "id": "4b514bfc-e89a-4d14-89d6-2c7beca9441c",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        -112
+      ]
+    },
+    {
+      "parameters": {
+        "path": "dashboard-data",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "4b0a3bc5-fb5c-4e79-b5df-2ae2811df141",
+      "name": "Dashboard Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        64,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "token-check-v2",
+              "leftValue": "={{ $json.query.token }}",
+              "rightValue": "YOUR_DASHBOARD_TOKEN",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "25cd30df-9f9b-435c-b1fe-3fb098f06b60",
+      "name": "Valid Token?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        288,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "YOUR_CUSTOMER_REQUESTS_TABLE_ID",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "id": "759ee18b-e6fa-4422-8f03-ea56b17f2496",
+      "name": "Get Customer Requests",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        512,
+        400
+      ],
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Your Airtable credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "YOUR_AGENT_DIRECTORY_TABLE_ID",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "id": "6e4a0cdc-b5a6-46c9-a97a-e2e186b81bec",
+      "name": "Get Agent Directory",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        704,
+        400
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Your Airtable credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "YOUR_AGENT_DIRECTORY_TABLE_ID",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "id": "d51d8695-9df8-4112-a24d-f2207fbccdc0",
+      "name": "Get Workflow Errors",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        912,
+        400
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Your Airtable credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== DASHBOARD METRICS CALCULATOR v2 =====\n// Pinagsasama: Customer Requests + Agent Directory + Workflow Errors\n// Output: buong JSON para sa 4-page dashboard\n\nconst isReal = (o) => o && Object.keys(o).some(k => k !== 'id' && k !== 'createdTime');\n\nconst records = $('Get Customer Requests').all().map(i => i.json).filter(isReal);\nconst agentRows = $('Get Agent Directory').all().map(i => i.json).filter(isReal);\nconst errorRows = $input.all().map(i => i.json).filter(isReal);\n\nconst num = (v) => (typeof v === 'number' ? v : parseFloat(v) || 0);\n\n/* ---------- Summary base ---------- */\nconst total = records.length;\nconst autoHandled = records.filter(r => r.Status === 'Auto-Handled').length;\nconst notified = records.filter(r => r.Status === 'Notified').length;\nconst needsReview = records.filter(r => r['Needs Human Review'] === true).length;\nconst avgConfidence = total\n  ? Math.round((records.reduce((s, r) => s + num(r.Confidence), 0) / total) * 10) / 10\n  : 0;\n\n/* ---------- Response time (Received At -> Processed At) ---------- */\nconst respTimes = [];\nfor (const r of records) {\n  const a = new Date(r['Received At']);\n  const b = new Date(r['Processed At']);\n  if (!isNaN(a.getTime()) && !isNaN(b.getTime()) && b >= a) {\n    respTimes.push((b - a) / 60000);\n  }\n}\nconst avgResponseMinutes = respTimes.length\n  ? Math.round((respTimes.reduce((s, v) => s + v, 0) / respTimes.length) * 10) / 10\n  : null;\n\n/* ---------- Time saved (6 mins per auto-handled reply) ---------- */\nconst timeSavedHours = Math.round(((autoHandled * 6) / 60) * 10) / 10;\n\n/* ---------- Weekly buckets (weeks starting Monday) ---------- */\nconst weekMap = {};\nfor (const r of records) {\n  const d = new Date(r['Received At']);\n  if (isNaN(d.getTime())) continue;\n  const dayIndex = (d.getDay() + 6) % 7;\n  const monday = new Date(d);\n  monday.setDate(d.getDate() - dayIndex);\n  const key = monday.toISOString().slice(0, 10);\n  if (!weekMap[key]) {\n    weekMap[key] = { weekStart: key, total: 0, autoHandled: 0, notified: 0, confSum: 0 };\n  }\n  weekMap[key].total++;\n  if (r.Status === 'Auto-Handled') weekMap[key].autoHandled++;\n  if (r.Status === 'Notified') weekMap[key].notified++;\n  weekMap[key].confSum += num(r.Confidence);\n}\nconst weeklyTrend = Object.values(weekMap)\n  .sort((a, b) => a.weekStart.localeCompare(b.weekStart))\n  .map(w => ({\n    weekStart: w.weekStart,\n    total: w.total,\n    autoHandled: w.autoHandled,\n    notified: w.notified,\n    avgConfidence: Math.round((w.confSum / w.total) * 10) / 10\n  }));\n\n/* ---------- Week-over-week deltas (huwag isama ang kasalukuyang linggo) ---------- */\nconst nowMonday = (() => {\n  const d = new Date();\n  const dayIndex = (d.getDay() + 6) % 7;\n  d.setDate(d.getDate() - dayIndex);\n  return d.toISOString().slice(0, 10);\n})();\nlet cmpWeeks = weeklyTrend.filter(w => w.weekStart !== nowMonday);\nif (cmpWeeks.length < 2) cmpWeeks = weeklyTrend;\nlet weekOverWeek = null;\nif (cmpWeeks.length >= 2) {\n  const last = cmpWeeks[cmpWeeks.length - 1];\n  const prev = cmpWeeks[cmpWeeks.length - 2];\n  const pct = (a, b) => (b ? Math.round(((a - b) / b) * 1000) / 10 : null);\n  weekOverWeek = {\n    latestWeek: last.weekStart,\n    previousWeek: prev.weekStart,\n    totalPct: pct(last.total, prev.total),\n    autoHandledPct: pct(last.autoHandled, prev.autoHandled),\n    notifiedPct: pct(last.notified, prev.notified),\n    avgConfidenceDelta: Math.round((last.avgConfidence - prev.avgConfidence) * 10) / 10\n  };\n}\n\n/* ---------- Category breakdown ---------- */\nconst catMap = {};\nfor (const r of records) {\n  const c = r.Category || 'Uncategorized';\n  if (!catMap[c]) {\n    catMap[c] = { category: c, total: 0, autoHandled: 0, notified: 0, confidenceSum: 0 };\n  }\n  catMap[c].total++;\n  if (r.Status === 'Auto-Handled') catMap[c].autoHandled++;\n  if (r.Status === 'Notified') catMap[c].notified++;\n  catMap[c].confidenceSum += num(r.Confidence);\n}\nconst categoryBreakdown = Object.values(catMap)\n  .map(c => ({\n    category: c.category,\n    total: c.total,\n    autoHandled: c.autoHandled,\n    notified: c.notified,\n    avgConfidence: Math.round((c.confidenceSum / c.total) * 10) / 10\n  }))\n  .sort((a, b) => b.total - a.total);\n\n/* ---------- Full request list (para sa Requests page) ---------- */\nconst allRequests = [...records]\n  .sort((a, b) => new Date(b['Received At']) - new Date(a['Received At']))\n  .map(r => {\n    const a = new Date(r['Received At']);\n    const b = new Date(r['Processed At']);\n    const rm = (!isNaN(a.getTime()) && !isNaN(b.getTime()) && b >= a)\n      ? Math.round(((b - a) / 60000) * 10) / 10\n      : null;\n    return {\n      sender: r['Sender Name'] || r['Sender Email'] || 'Unknown',\n      senderEmail: r['Sender Email'] || '',\n      subject: r.Subject || '',\n      body: r.Body || '',\n      category: r.Category || '',\n      status: r.Status || '',\n      confidence: num(r.Confidence),\n      needsHumanReview: r['Needs Human Review'] === true,\n      aiReasoning: r['AI Reasoning'] || '',\n      draftResponse: r['Draft Response'] || '',\n      assignedTo: r['Assigned To'] || '',\n      receivedAt: r['Received At'] || '',\n      processedAt: r['Processed At'] || '',\n      responseMinutes: rm\n    };\n  });\nconst recentRequests = allRequests.slice(0, 8);\n\n/* ---------- Agents (join Agent Directory + handled counts) ---------- */\nconst handledBy = {};\nfor (const r of records) {\n  const a = r['Assigned To'] || 'Unassigned';\n  handledBy[a] = (handledBy[a] || 0) + 1;\n}\nconst agents = agentRows\n  .map(a => {\n    const name = a['Agent Name'] || 'Unknown';\n    return {\n      name: name,\n      specialty: a['Category'] || '',\n      email: a['Agent Email'] || '',\n      available: a['Is Available'] === true,\n      backup: a['Backup Agent'] || '',\n      handled: handledBy[name] || 0\n    };\n  })\n  .sort((x, y) => y.handled - x.handled);\n\nconst agentBreakdown = Object.entries(handledBy)\n  .map(([agent, count]) => ({ agent: agent, total: count }))\n  .sort((a, b) => b.total - a.total);\n\n/* ---------- System health (Workflow Errors) ---------- */\nconst errSorted = [...errorRows].sort(\n  (a, b) => new Date(b['Timestamp']) - new Date(a['Timestamp'])\n);\nconst resolvedCount = errorRows.filter(e => e.Resolved === true).length;\nconst toErr = (e) => ({\n  timestamp: e['Timestamp'] || '',\n  nodeName: e['Node Name'] || '',\n  errorMessage: e['Error Message'] || '',\n  resolved: e.Resolved === true\n});\nconst systemHealth = {\n  totalErrors: errorRows.length,\n  resolvedErrors: resolvedCount,\n  unresolvedErrors: errorRows.length - resolvedCount,\n  lastError: errSorted.length ? toErr(errSorted[0]) : null,\n  recentErrors: errSorted.slice(0, 5).map(toErr)\n};\n\n/* ---------- Output ---------- */\nreturn [\n  {\n    json: {\n      generatedAt: new Date().toISOString(),\n      summary: {\n        totalRequests: total,\n        autoHandled: autoHandled,\n        autoHandledPercent: total ? Math.round((autoHandled / total) * 1000) / 10 : 0,\n        notified: notified,\n        needsHumanReview: needsReview,\n        avgConfidence: avgConfidence,\n        avgResponseMinutes: avgResponseMinutes,\n        timeSavedHours: timeSavedHours,\n        weekOverWeek: weekOverWeek\n      },\n      categoryBreakdown: categoryBreakdown,\n      agentBreakdown: agentBreakdown,\n      weeklyTrend: weeklyTrend,\n      recentRequests: recentRequests,\n      allRequests: allRequests,\n      agents: agents,\n      systemHealth: systemHealth\n    }\n  }\n];"
+      },
+      "id": "75533ab9-0e7a-44b1-b45d-4b72ce1074fa",
+      "name": "Calculate Metrics v2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "8fe5ef10-d9e5-4b79-9564-42c0790dd07f",
+      "name": "Send Dashboard Data",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [
+        1312,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"error\": \"Unauthorized. Missing or invalid token.\"\n}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "36b7cdc4-64ea-4545-90ba-897a91057ba8",
+      "name": "Access Denied",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [
+        512,
+        640
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Dashboard Webhook": {
+      "main": [
+        [
+          {
+            "node": "Valid Token?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Token?": {
+      "main": [
+        [
+          {
+            "node": "Get Customer Requests",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Access Denied",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Customer Requests": {
+      "main": [
+        [
+          {
+            "node": "Get Agent Directory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Agent Directory": {
+      "main": [
+        [
+          {
+            "node": "Get Workflow Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Workflow Errors": {
+      "main": [
+        [
+          {
+            "node": "Calculate Metrics v2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Metrics v2": {
+      "main": [
+        [
+          {
+            "node": "Send Dashboard Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "nodeGroups": [],
+  "tags": []
+}
